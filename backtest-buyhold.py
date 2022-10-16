@@ -24,7 +24,7 @@ class BuyAndHoldStrategy(strategy.BacktestingStrategy):
             self.position = self.enterLong(self.instrument, quantity)
 
 feed = yahoofeed.Feed()
-feed.addBarsFromCSV("spy", "spy.csv")
+feed.addBarsFromCSV("spy", "eth.csv")
 
 strategy = BuyAndHoldStrategy(feed, "spy")
 strategy.run()

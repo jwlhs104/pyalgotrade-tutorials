@@ -3,13 +3,15 @@ import pandas_market_calendars as market_calendar
 
 from pyalgotrade import strategy
 from pyalgotrade.barfeed import yahoofeed
+from pyalgotrade.barfeed import csvfeed
+from pyalgotrade.bar import Frequency
 from pyalgotrade.technical import ma
 from pyalgotrade import plotter
 from pyalgotrade.stratanalyzer import returns, drawdown, trades
 
 # get last days of month
 nyse = market_calendar.get_calendar('NYSE')
-df = nyse.schedule(start_date='2000-01-01', end_date='2021-12-31')
+df = nyse.schedule(start_date='2000-01-01', end_date='2022-12-31')
 df = df.groupby(df.index.strftime('%Y-%m')).tail(1)
 df['date'] = pandas.to_datetime(df['market_open']).dt.date
 last_days_of_month = [date.isoformat() for date in df['date'].tolist()]
@@ -39,25 +41,27 @@ class MovingAverageStrategy(strategy.BacktestingStrategy):
         close = bar.getAdjClose()
         date = bar.getDateTime().date().isoformat()
 
-        if date in last_days_of_month:
-            if self.position is None:
-                broker = self.getBroker()
-                cash = broker.getCash() * .98
-                
-                if date in last_days_of_month and close > self.ma[-1]:
-                    quantity = cash / close
-                    self.info(f"buying at {close}, which is above {self.ma[-1]}")
-                    self.position = self.enterLong(self.instrument, quantity)
+        # if date not in last_days_of_month:
+            # return
+        if self.position is None:
+            broker = self.getBroker()
+            cash = broker.getCash() * .98
             
-            elif close < self.ma[-1] and self.position is not None:
-                self.info(f"selling at {close}, which is below {self.ma[-1]}")
-                self.position.exitMarket()
-                self.position = None
+            if date in last_days_of_month and close > self.ma[-1]:
+                quantity = cash / close
+                self.info(f"buying at {close}, which is above {self.ma[-1]}")
+                self.position = self.enterLong(self.instrument, quantity)
+        
+        elif close < self.ma[-1] and self.position is not None:
+            self.info(f"selling at {close}, which is below {self.ma[-1]}")
+            self.position.exitMarket()
+            self.position = None
 
 
 # # Load the bar feed from the CSV file
-feed = yahoofeed.Feed()
-feed.addBarsFromCSV("spy", "spy.csv")
+# feed = yahoofeed.Feed()
+feed = csvfeed.GenericBarFeed(Frequency.HOUR)
+feed.addBarsFromCSV("spy", "eth.csv")
 
 strategy = MovingAverageStrategy(feed, "spy")
 
