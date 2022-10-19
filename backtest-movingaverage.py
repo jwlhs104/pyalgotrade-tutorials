@@ -1,20 +1,10 @@
-import pandas
-import pandas_market_calendars as market_calendar
-
 from pyalgotrade import strategy
-from pyalgotrade.barfeed import yahoofeed
 from pyalgotrade.barfeed import csvfeed
 from pyalgotrade.bar import Frequency
 from pyalgotrade.technical import ma
 from pyalgotrade import plotter
 from pyalgotrade.stratanalyzer import returns, drawdown, trades
 
-# get last days of month
-nyse = market_calendar.get_calendar('NYSE')
-df = nyse.schedule(start_date='2000-01-01', end_date='2022-12-31')
-df = df.groupby(df.index.strftime('%Y-%m')).tail(1)
-df['date'] = pandas.to_datetime(df['market_open']).dt.date
-last_days_of_month = [date.isoformat() for date in df['date'].tolist()]
 
 class MovingAverageStrategy(strategy.BacktestingStrategy):
     def __init__(self, feed, instrument):
@@ -26,32 +16,28 @@ class MovingAverageStrategy(strategy.BacktestingStrategy):
 
     def onEnterOk(self, position):
         execInfo = position.getEntryOrder().getExecutionInfo()
-        self.info(f"===== BUY at {execInfo.getPrice()} {execInfo.getQuantity()} =====")
+        self.info(
+            f"===== BUY at {execInfo.getPrice()} {execInfo.getQuantity()} =====")
 
     def onExitOk(self, position):
         execInfo = position.getExitOrder().getExecutionInfo()
         self.info(f"===== SELL at {execInfo.getPrice()} =====")
         self.position = None
-    
+
     def onBars(self, bars):
         if self.ma[-1] is None:
             return
 
         bar = bars[self.instrument]
         close = bar.getAdjClose()
-        date = bar.getDateTime().date().isoformat()
 
-        # if date not in last_days_of_month:
-            # return
-        if self.position is None:
+        if close > self.ma[-1] and self.position is None:
             broker = self.getBroker()
             cash = broker.getCash() * .98
-            
-            if date in last_days_of_month and close > self.ma[-1]:
-                quantity = cash / close
-                self.info(f"buying at {close}, which is above {self.ma[-1]}")
-                self.position = self.enterLong(self.instrument, quantity)
-        
+            quantity = cash / close
+            self.info(f"buying at {close}, which is above {self.ma[-1]}")
+            self.position = self.enterLong(self.instrument, quantity)
+
         elif close < self.ma[-1] and self.position is not None:
             self.info(f"selling at {close}, which is below {self.ma[-1]}")
             self.position.exitMarket()
@@ -73,7 +59,7 @@ strategy.attachAnalyzer(returnsAnalyzer)
 strategy.attachAnalyzer(drawDownAnalyzer)
 strategy.attachAnalyzer(tradesAnalyzer)
 
-plt = plotter.StrategyPlotter(strategy) 
+plt = plotter.StrategyPlotter(strategy)
 plt.getInstrumentSubplot("spy").addDataSeries("200 day", strategy.ma)
 
 strategy.run()
@@ -81,9 +67,11 @@ strategy.run()
 plt.plot()
 
 print("Final portfolio value: $%.2f" % strategy.getResult())
-print("Cumulative returns: %.2f %%" % (returnsAnalyzer.getCumulativeReturns()[-1] * 100))
+print("Cumulative returns: %.2f %%" %
+      (returnsAnalyzer.getCumulativeReturns()[-1] * 100))
 print("Max. drawdown: %.2f %%" % (drawDownAnalyzer.getMaxDrawDown() * 100))
-print("Longest drawdown duration: %s" % (drawDownAnalyzer.getLongestDrawDownDuration()))
+print("Longest drawdown duration: %s" %
+      (drawDownAnalyzer.getLongestDrawDownDuration()))
 
 print("")
 print("Total trades: %d" % (tradesAnalyzer.getCount()))
@@ -126,4 +114,3 @@ if tradesAnalyzer.getUnprofitableCount() > 0:
     print("Returns std. dev.: %2.f %%" % (returns.std() * 100))
     print("Max. return: %2.f %%" % (returns.max() * 100))
     print("Min. return: %2.f %%" % (returns.min() * 100))
-
